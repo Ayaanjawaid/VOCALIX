@@ -1,50 +1,41 @@
-import streamlit as st
 import pyttsx3
-from io import BytesIO
+import streamlit as st
+import os
+import base64
 
 st.set_page_config(page_title="VOCALIX", page_icon=":speaker:")
 
-# Initialize the TTS engine
-engine = pyttsx3.init(driverName='sapi5')
+# Initialize the TTS engine with 'espeak' driver
+engine = pyttsx3.init(driverName='espeak')
 
 # Get available voices
 voices = engine.getProperty('voices')
 
-# Streamlit interface
-st.title("VOCALIX: Text-to-Speech Converter")
+# Function to convert text to speech
+def text_to_speech(text, voice_id, speed):
+    engine.setProperty('voice', voice_id)
+    engine.setProperty('rate', speed)
+    engine.save_to_file(text, 'output.mp3')
+    engine.runAndWait()
 
-# Select voice
-voice_options = {voice.name: voice.id for voice in voices}
-selected_voice = st.selectbox("Choose a Voice", list(voice_options.keys()))
+    # Read the audio file and encode it for download
+    with open('output.mp3', 'rb') as audio_file:
+        audio_bytes = audio_file.read()
+    os.remove('output.mp3')
+    return audio_bytes
 
-# Set the selected voice
-engine.setProperty('voice', voice_options[selected_voice])
+# Streamlit UI components
+st.title("Text to Speech Converter")
+text = st.text_area("Enter text here")
+voice = st.selectbox("Select Voice", [(voice.name, voice.id) for voice in voices])
+speed = st.slider("Select Speed", min_value=50, max_value=300, value=150)
 
-# Adjust voice speed
-speed = st.slider("Select Voice Speed (Words per Minute)", min_value=100, max_value=300, value=200)
-engine.setProperty('rate', speed)
-
-# Input text for conversion
-text = st.text_area("Enter the text you want to convert to speech:")
-
-# Convert to speech and download
-if st.button("Convert to Speech"):
+if st.button("Convert"):
     if text:
-        # Create an in-memory file-like object
-        audio_file = BytesIO()
-        engine.save_to_file(text, 'output.mp3')
-        engine.runAndWait()
+        audio_data = text_to_speech(text, voice[1], speed)
+        st.audio(audio_data, format="audio/mp3")
 
-        # Read the saved file into the BytesIO object
-        with open('output.mp3', 'rb') as f:
-            audio_file.write(f.read())
-        audio_file.seek(0)
-
-        # Play the audio file
-        st.audio(audio_file, format='audio/mp3')
-
-        # Download the audio file
-        st.download_button(label="Download Audio", data=audio_file, file_name="speech.mp3", mime="audio/mp3")
-        st.success("Text converted to speech successfully!")
+        # Option to download the file
+        st.download_button("Download Audio", data=audio_data, file_name="output.mp3", mime="audio/mp3")
     else:
-        st.warning("Please enter some text.")
+        st.error("Please enter some text.")
